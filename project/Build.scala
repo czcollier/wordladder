@@ -61,7 +61,7 @@ object Dependencies {
   )
 
   object Versions {
-    val akka        = "1.3.1"
+    val akka        = "2.0.5"
     val spray       = "0.9.0"
     val sprayCan    = "0.9.3"
     val casbah      = "2.4.1"
@@ -83,7 +83,7 @@ object Dependencies {
   object Compile {
     val scopeName = "compile"
 
-    val akkaActor       = "se.scalablesolutions.akka" %  "akka-actor"          % Versions.akka        % "compile"
+    val akkaActor       = "com.typesafe.akka"         %  "akka-actor"          % Versions.akka        % "compile"
     val sprayCan        = "cc.spray"                  %  "spray-can"           % Versions.sprayCan    % "compile"
     val sprayServer     = "cc.spray"                  %  "spray-server"        % Versions.spray       % "compile"
     val casbah          = "org.mongodb"               %% "casbah"              % Versions.casbah      % "compile"
@@ -108,7 +108,7 @@ object Dependencies {
   }
 
   object Container {
-    val akkaSlf4j   = "se.scalablesolutions.akka" %  "akka-slf4j"      % Versions.akka
+    val akkaSlf4j   = "com.typesafe.akka"         %  "akka-slf4j"      % Versions.akka
     val slf4j       = "org.slf4j"                 %  "slf4j-api"       % Versions.slf4j
     val logback     = "ch.qos.logback"            %  "logback-classic" % Versions.logback
   }
