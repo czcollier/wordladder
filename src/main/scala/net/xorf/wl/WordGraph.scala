@@ -17,23 +17,23 @@ object WordGraph extends Neo4jWrapper with Neo4jIndexProvider with EmbeddedGraph
 
   ShutdownHookThread {
     shutdown(ds)
-    system.shutdown()
+    //system.shutdown()
   }
 
-  val system = ActorSystem("MySystem")
+  //val system = ActorSystem("MySystem")
 
   def neo4jStoreDir = "data/neo_test"
   override def NodeIndexConfig = ("WordsIndex", Some(Map("provider" -> "lucene", "type" -> "fulltext"))) :: Nil
 
   def shutdown() {
-    system.shutdown()
+    //system.shutdown()
   }
 
   def search(word1: String, word2: String): Either[FindError, Iterable[Word]] = {
     withTx { implicit neo =>
       implicit val nodeIndex = getNodeIndex("WordsIndex").get
 
-      GlobalGraphOperations.at(neo.gds).getAllNodes.iterator
+      //GlobalGraphOperations.at(neo.gds).getAllNodes.iterator
       val startNode = getNode(word1)
       val endNode = getNode(word2)
 
@@ -69,71 +69,41 @@ object WordGraph extends Neo4jWrapper with Neo4jIndexProvider with EmbeddedGraph
     }
   }
 
-  case class PopulateWork(leftChunk: Seq[Node], leftOffset: Int, rightChunk: Seq[Node], rightOffset: Int)
-
-  def buildNodes(dataFile: String)(implicit neo: DatabaseService) = {
-    println("building nodes")
-    val index = getNodeIndex("WordsIndex").get
-    val words = scala.io.Source.fromFile(dataFile).getLines()
-    val nodes = words.map(w => createNode(Word(w))).toArray
-    for (n <- nodes)
-      index += (n, "text", n.toCC[Word].get.text)
-    nodes
-  }
-
-  def connect(nodes: Seq[Node])(implicit neo: DatabaseService) {
-    //val chunkSize = scala.math.sqrt(nodes.size).toInt
-    val chunkSize = nodes.size
-    println("chunk size is: %d".format(chunkSize))
-    val groups = nodes.grouped(chunkSize).toArray
-    println("bootstrapping %d chunks".format(groups.size))
-    for (i <- 0 until groups.length) {
-      for (j <- 0 until groups.length) {
-        if (j % scala.math.sqrt(groups.length).toInt == 0)
-          println("chunk: %d %d".format(i, j))
-        val work = PopulateWork(groups(i), chunkSize * i, groups(j), chunkSize * j)
-        val actor = system.actorOf(Props[Populator], name = "populator_%d_%d".format(i, j))
-        //populate(groups(i), chunkSize * i, groups(j), chunkSize * j)
-        actor ! work
-      }
-    }
-  }
-
   def bootstrap(dataFile: String) {
     withTx { implicit neo =>
-      val nodes = buildNodes(dataFile)
-      //connect(nodes)
+      build(dataFile)
     }
   }
 
-  class Populator extends Actor {
-    def receive = {
-      case w: PopulateWork => withTx { implicit neo =>
-        connectChunk(w.leftChunk, w.leftOffset, w.rightChunk, w.rightOffset)
-      }
-      case x => println("wrong type: %s".format(x.getClass))
-    }
+  private def build(dataFile: String)(implicit neo: DatabaseService) {
+    println("building nodes")
+    val words = scala.io.Source.fromFile(dataFile).getLines.toIterable
+    val nodes = index(words)
+    connect(nodes)
   }
 
-  def connectChunk(leftChunk: Seq[Node], leftOffset: Int, rightChunk: Seq[Node], rightOffset: Int)(implicit neo: DatabaseService) {
-    var cnt = 0
-      for (i <- 0 until leftChunk.length) {
-        val lnode = leftChunk(i).toCC[Word].get
+  private def index(words: Iterable[String])(implicit neo: DatabaseService) = {
+    val index = getNodeIndex("WordsIndex").get
+    val nodes = words.map(w => createNode(Word(w))).toIterable
 
-        for (j <- 0 until rightChunk.length) {
-          //if (leftOffset + i > rightOffset + j) {
-            val rnode = rightChunk(j).toCC[Word].get
-            val dist = DistanceMeasures.levenshtein1(lnode.text, rnode.text)
-            cnt += 1
-            if (dist < 2) {
-              leftChunk(i) --> "LINKS" --> rightChunk(j)
-            }
-          //}
+    println("indexing...")
+    for (n <- nodes)
+      index += (n, "text", n.toCC[Word].get.text)
+
+    nodes.zip(words)
+  }
+
+  private def connect(nodes: Iterable[(Node, String)])(implicit neo: DatabaseService) {
+    println("connecting...")
+    val first = (nodes.unzip)._2.zipWithIndex
+
+    first.par.foreach { e =>
+      first.foreach { f =>
+        val dist = DistanceMeasures.levenshtein3(e._1, f._1)
+        if (dist < 3) {
+          println(e._2,  f._2)
         }
-        //if (i % 20 == 0) {
-        //  println("processed %d words (%s)".format(i, lnode.text))
-        //}
       }
-      println("processed %d words".format(cnt))
+    }
   }
 }

@@ -5,7 +5,7 @@ import akka.actor.ActorSystem
 
 object WGConsole extends App {
 
-  val system = ActorSystem("MySystem")
+  //val system = ActorSystem("MySystem")
 
   print("wg~> ")
   Iterator.continually(Console.readLine()).takeWhile(_ != "exit").foreach {
@@ -46,7 +46,7 @@ object WGConsole extends App {
       }
     }
 
-    system.shutdown()
+    //system.shutdown()
     WordGraph.shutdown()
   }
 }
