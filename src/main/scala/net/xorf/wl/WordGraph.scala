@@ -33,7 +33,6 @@ object WordGraph extends Neo4jWrapper with Neo4jIndexProvider with EmbeddedGraph
     withTx { implicit neo =>
       implicit val nodeIndex = getNodeIndex("WordsIndex").get
 
-      //GlobalGraphOperations.at(neo.gds).getAllNodes.iterator
       val startNode = getNode(word1)
       val endNode = getNode(word2)
 
@@ -61,7 +60,29 @@ object WordGraph extends Neo4jWrapper with Neo4jIndexProvider with EmbeddedGraph
     }
   }
 
-  def getNode(search: String)(implicit idx: Index[Node]) = {
+  def seed(dataFile: String) {
+    withTx { implicit neo =>
+      createAndIndex(dataFile)
+    }
+  }
+
+  def connect() {
+    withTx { implicit neo =>
+      calcDists()
+    }
+  }
+
+
+  def count = {
+    withTx { implicit neo =>
+      val itr = GlobalGraphOperations.at(neo.gds).getAllNodes.iterator
+      var cnt = 0
+      for (i <- itr) cnt += 1
+      cnt
+    }
+  }
+
+  private def getNode(search: String)(implicit idx: Index[Node]) = {
     val n = Option(idx.get("text", search).getSingle)
     n match {
       case Some(v) => Right(v)
@@ -69,17 +90,10 @@ object WordGraph extends Neo4jWrapper with Neo4jIndexProvider with EmbeddedGraph
     }
   }
 
-  def bootstrap(dataFile: String) {
-    withTx { implicit neo =>
-      build(dataFile)
-    }
-  }
-
-  private def build(dataFile: String)(implicit neo: DatabaseService) {
+  private def createAndIndex(dataFile: String)(implicit neo: DatabaseService) {
     println("building nodes")
-    val words = scala.io.Source.fromFile(dataFile).getLines.toIterable
-    val nodes = index(words)
-    connect(nodes)
+    val words = scala.io.Source.fromFile(dataFile).getLines().toIterable
+    index(words)
   }
 
   private def index(words: Iterable[String])(implicit neo: DatabaseService) = {
@@ -93,16 +107,19 @@ object WordGraph extends Neo4jWrapper with Neo4jIndexProvider with EmbeddedGraph
     nodes.zip(words)
   }
 
-  private def connect(nodes: Iterable[(Node, String)])(implicit neo: DatabaseService) {
-    println("connecting...")
-    val first = (nodes.unzip)._2.zipWithIndex
+  private def extract(n: Node) = n.toCC[Word].get.text
 
-    first.par.foreach { e =>
-      first.foreach { f =>
-        val dist = DistanceMeasures.levenshtein3(e._1, f._1)
-        if (dist < 3) {
-          println(e._2,  f._2)
-        }
+  private def calcDists()(implicit neo: DatabaseService) {
+    val nodes = GlobalGraphOperations.at(neo.gds).getAllNodes.filter(x => !x.toCC[Word].isEmpty)
+
+    nodes.toSeq.combinations(2).toSeq.par.foreach { e =>
+      val left = extract(e(0))
+      val right = extract(e(1))
+
+      val dist = DistanceMeasures.levenshtein1(left, right)
+      if (dist < 3) {
+        println("%s <- %d -> %s".format(left, dist, right))
+        e(0) --> "LINKS" --> e(1)
       }
     }
   }

@@ -15,18 +15,21 @@ object WGConsole extends App {
       val cmdName = cmdArgs(0)
 
       cmdName match {
-        case "populate" => {
+        case "seed" => {
           println("populating...")
           val dataFile = cmdArgs(1)
           timed(printTime("populated graph in: ")) {
-            WordGraph.bootstrap(dataFile)
+            WordGraph.seed(dataFile)
           }
         }
-        case "search" => {
+        case "connect" => {
+          WordGraph.connect()
+        }
+        case "find" => {
           val word = cmdArgs(1)
           println(WordGraph.find(word))
         }
-        case "find" => {
+        case "search" => {
           println("finding...")
           val word1 = cmdArgs(1)
           val word2 = cmdArgs(2)
@@ -37,12 +40,18 @@ object WGConsole extends App {
           }
           println(out)
         }
+        case "count" => {
+          println(WordGraph.count)
+        }
         case x => println("unknown command: '%s'".format(x))
       }
       print("wg~> ")
       }
       catch {
-        case e: Throwable => println(e.getStackTrace.mkString("\n"))
+        case e: Throwable => {
+          println(e.toString)
+          println(e.getStackTrace.mkString("\n"))
+        }
       }
     }
 
